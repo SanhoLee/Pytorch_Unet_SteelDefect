@@ -11,6 +11,7 @@ from zipfile import ZipFile
 import torch
 import torch.utils.data
 
+data_dir = './datasets'
 ## Dataloader
 class Dataset(torch.utils.data.Dataset):
     # def __init__(self, data_dir, transform=None):
@@ -30,60 +31,57 @@ class Dataset(torch.utils.data.Dataset):
 
         # data의 transform이 있을 경우에는 데이터 적용한다
         self.data_dir = data_dir
+        self.imgs_dir = os.path.join(data_dir, 'origin', 'train_images')
         self.transform = transform
         self.df = pd.read_csv(os.path.join(data_dir, 'train.csv'))  # for label data...
 
-        # input list variable
-        lst_input = os.listdir(os.path.join(data_dir, 'origin'))
+        # input list variable, in order to avoid not existing element in the list,
+        # Specifying the input list based on csv file.
+        lst_input = list(self.df.ImageId)
         self.lst_input = lst_input
-
+        self.imgShape = np.asarray(Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape # tuple (height, width, channels)
         def getLabelImg(self, imgId):
-            return 0
+            label_en_Px = list(self.df[self.df['ImageId'] == imgId].EncodedPixels)[0].split(' ')
+            Px_Pos = map(int, label_en_Px[0::2])
+            Px_len = map(int, label_en_Px[1::2])
+            label_oneD = np.zeros(self.imgShape[0]*self.imgShape[1], dtype=np.uint8)
+
+            for pos, len in zip(Px_Pos, Px_len):
+                label_oneD[pos:pos + len - 1] = 255
+
+            label = label_oneD.reshape(self.imgShape[0], self.imgShape[1], order='F')
+
+            return label
 
 
-
-
-
-##  Data length, just the size of all data in dataframe
+    ##  Data length, just the size of all data in dataframe
     def __len__(self):
         return len(self.lst_input)
 
-    #  Get a specific index data, method of // instanceName(index)
+    ##  Get a specific index data, method of // instanceName(index)
     def __getitem__(self, index):
 
         imgId = self.lst_input[index]
 
+        # make input Image
         input_PIL = Image.open(os.path.join(self.data_dir, 'origin', imgId))
         input = np.asarray(input_PIL)
 
-        label_en_Px = list(self.df[self.df['ImageId'] == imgId])[0].split(' ')
-        Px_Pos = label_en_Px[0::2]
-        Px_len = label_en_Px[1::2]
-        label = np.zeros(input.shape)
+        # make label image
+        label = self.getLabelImg(imgId)
 
 
+        # make array value into 0 to 1.
+        input = input / 255.0
+        label = label / 255.0
 
-        # np array(npy) 파일을 불러 오기
-        # label = np.load(os.path.join(self.data_dir, self.lst_label[index]))
+        # Check Dimenstion and add one dimension.
+        if input.ndim == 2:
+            input = input[:, :, np.newaxis]
+        if label.ndim == 2:
+            label = label[:, :, np.newaxis]
 
-        # input = np.load(os.path.join(self.data_dir, imgId))
-        # load from zip file
-        # with ZipFile()
-
-        # input = np.load(os.path.join(self.data_dir, imgId))
-        # label = np.load(os.path.join(self.data_dir, self.lst_label[index]))
-        #
-        # # make array value into 0 to 1.
-        # label = label / 255.0
-        # input = input / 255.0
-        #
-        # #      어레이 차원 확인 후, 3차원 매트릭스로 변경, channel 데이터 인덱스 자리를 만들기 위해서 ?
-        # if label.ndim == 2:
-        #     label = label[:, :, np.newaxis]
-        # if input.ndim == 2:
-        #     input = input[:, :, np.newaxis]
-
-        #      label, input 데이터를 사전형으로 준비
+        # make data object as dict type for label, input
         data = {'input': input, 'label': label}
 
         # if self.transform:
