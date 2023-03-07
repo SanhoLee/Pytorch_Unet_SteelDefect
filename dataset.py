@@ -13,6 +13,8 @@ import torch.utils.data
 
 data_dir = './datasets'
 ## Dataloader
+
+# Todo, need to find the way whether this Class is working fine or not.
 class Dataset(torch.utils.data.Dataset):
     # def __init__(self, data_dir, transform=None):
     def __init__(self, data_dir, transform=None):
@@ -54,38 +56,53 @@ class Dataset(torch.utils.data.Dataset):
             return label
 
 
-    ##  Data length, just the size of all data in dataframe
+    #  Data length, just the size of all data in dataframe
     def __len__(self):
         return len(self.lst_input)
 
-    ##  Get a specific index data, method of // instanceName(index)
+    #  Get a specific index data, method of // instanceName(index)
     def __getitem__(self, index):
 
         imgId = self.lst_input[index]
 
         # make input Image
-        input_PIL = Image.open(os.path.join(self.data_dir, 'origin', imgId))
+        input_PIL = Image.open(os.path.join(self.imgs_dir, imgId))
         input = np.asarray(input_PIL)
 
         # make label image
-        label = self.getLabelImg(imgId)
+        # label = self.getLabelImg(imgId)
 
 
         # make array value into 0 to 1.
         input = input / 255.0
-        label = label / 255.0
+        # label = label / 255.0
 
         # Check Dimenstion and add one dimension.
-        if input.ndim == 2:
-            input = input[:, :, np.newaxis]
-        if label.ndim == 2:
-            label = label[:, :, np.newaxis]
+        # if input.ndim == 2:
+        #     input = input[:, :, np.newaxis]
+        # if label.ndim == 2:
+        #     label = label[:, :, np.newaxis]
 
         # make data object as dict type for label, input
-        data = {'input': input, 'label': label}
+        # data = {'input': input, 'label': label}
+        data = {'input': input}
 
         # if self.transform:
         #     data = self.transform(data)
         #     # transform 클래스의 return 값은 여기서 선언한 data 사전형과 동일하게 해줘야 한다.
 
         return data
+
+## test dataset
+dataset_train = Dataset(data_dir='datasets')
+
+##
+data = dataset_train.__getitem__(0)
+input = data['input']
+
+
+##
+
+# label = data['label']
+
+##
