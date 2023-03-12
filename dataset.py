@@ -2,6 +2,8 @@
 
 ##
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -12,13 +14,13 @@ import torch
 import torch.utils.data
 
 data_dir = './datasets'
+
+
 ## Dataloader
 
-# Todo, need to find the way whether this Class is working fine or not.
 class Dataset(torch.utils.data.Dataset):
     # def __init__(self, data_dir, transform=None):
     def __init__(self, data_dir, transform=None):
-
         '''
         >>
             origin data :
@@ -33,7 +35,7 @@ class Dataset(torch.utils.data.Dataset):
 
         # data의 transform이 있을 경우에는 데이터 적용한다
         self.data_dir = data_dir
-        self.imgs_dir = os.path.join(data_dir, 'origin', 'train_images')
+        self.imgs_dir = os.path.join(data_dir, 'train_images')
         self.transform = transform
         self.df = pd.read_csv(os.path.join(data_dir, 'train.csv'))  # for label data...
 
@@ -41,20 +43,22 @@ class Dataset(torch.utils.data.Dataset):
         # Specifying the input list based on csv file.
         lst_input = list(self.df.ImageId)
         self.lst_input = lst_input
-        self.imgShape = np.asarray(Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape # tuple (height, width, channels)
-        def getLabelImg(self, imgId):
-            label_en_Px = list(self.df[self.df['ImageId'] == imgId].EncodedPixels)[0].split(' ')
-            Px_Pos = map(int, label_en_Px[0::2])
-            Px_len = map(int, label_en_Px[1::2])
-            label_oneD = np.zeros(self.imgShape[0]*self.imgShape[1], dtype=np.uint8)
+        self.imgShape = np.asarray(Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
 
-            for pos, len in zip(Px_Pos, Px_len):
-                label_oneD[pos:pos + len - 1] = 255
 
-            label = label_oneD.reshape(self.imgShape[0], self.imgShape[1], order='F')
+    # __init__ 안에다가 함수를 정의하면, init 안에서만 call이 가능하다
+    def getLabelImg(self, imgId):
+        label_en_Px = list(self.df[self.df['ImageId'] == imgId].EncodedPixels)[0].split(' ')
+        Px_Pos = map(int, label_en_Px[0::2])
+        Px_len = map(int, label_en_Px[1::2])
+        label_oneD = np.zeros(self.imgShape[0] * self.imgShape[1], dtype=np.uint8)
 
-            return label
+        for pos, len in zip(Px_Pos, Px_len):
+            label_oneD[pos:pos + len - 1] = 255
 
+        label = label_oneD.reshape(self.imgShape[0], self.imgShape[1], order='F')
+
+        return label
 
     #  Data length, just the size of all data in dataframe
     def __len__(self):
@@ -62,7 +66,6 @@ class Dataset(torch.utils.data.Dataset):
 
     #  Get a specific index data, method of // instanceName(index)
     def __getitem__(self, index):
-
         imgId = self.lst_input[index]
 
         # make input Image
@@ -70,22 +73,21 @@ class Dataset(torch.utils.data.Dataset):
         input = np.asarray(input_PIL)
 
         # make label image
-        # label = self.getLabelImg(imgId)
-
+        label = self.getLabelImg(imgId)
 
         # make array value into 0 to 1.
         input = input / 255.0
-        # label = label / 255.0
+        label = label / 255.0
 
         # Check Dimenstion and add one dimension.
-        # if input.ndim == 2:
-        #     input = input[:, :, np.newaxis]
-        # if label.ndim == 2:
-        #     label = label[:, :, np.newaxis]
+        if input.ndim == 2:
+            input = input[:, :, np.newaxis]
+        if label.ndim == 2:
+            label = label[:, :, np.newaxis]
 
         # make data object as dict type for label, input
-        # data = {'input': input, 'label': label}
-        data = {'input': input}
+        data = {'input': input, 'label': label}
+        # data = {'input': input}
 
         # if self.transform:
         #     data = self.transform(data)
@@ -93,16 +95,25 @@ class Dataset(torch.utils.data.Dataset):
 
         return data
 
+
 ## test dataset
 dataset_train = Dataset(data_dir='datasets')
 
 ##
-data = dataset_train.__getitem__(0)
+data = dataset_train.__getitem__(10)
 input = data['input']
+label = data['label']
 
+# plot data
+ax1 = plt.subplot(211)
+ax1.set_title('input')
+plt.imshow(input, cmap='gray')
+
+ax2 = plt.subplot(212)
+plt.imshow(label, cmap='gray')
+ax2.set_title('label')
+
+plt.show()
 
 ##
 
-# label = data['label']
-
-##
