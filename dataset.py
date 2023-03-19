@@ -43,8 +43,8 @@ class Dataset(torch.utils.data.Dataset):
         # Specifying the input list based on csv file.
         lst_input = list(self.df.ImageId)
         self.lst_input = lst_input
-        self.imgShape = np.asarray(Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
-
+        self.imgShape = np.asarray(
+            Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
 
     # __init__ 안에다가 함수를 정의하면, init 안에서만 call이 가능하다
     def getLabelImg(self, imgId):
@@ -89,15 +89,73 @@ class Dataset(torch.utils.data.Dataset):
         data = {'input': input, 'label': label}
         # data = {'input': input}
 
-        # if self.transform:
-        #     data = self.transform(data)
+        if self.transform:
+            data = self.transform(data)
         #     # transform 클래스의 return 값은 여기서 선언한 data 사전형과 동일하게 해줘야 한다.
 
         return data
 
 
+
+
+##
+class ToTensor(object):
+    '''
+    change data type, numpy -> tensor
+    '''
+
+    def __call__(self, data):
+        # get data
+        label, input = data['label'], data['input']
+
+        # set each column into tensor-way// (width, height, channel) -> (channel, width, height)
+        label = label.transpose((2, 0, 1)).astype(np.float32)
+        input = input.transpose((2, 0, 1)).astype(np.float32)
+
+        data = {'label': torch.from_numpy(label), 'input': torch.from_numpy(input)}
+
+        return data
+
+
+class Normalization(object):
+    '''
+    Normalizing pixel values
+    '''
+
+    def __init__(self, mean=0.5, std=0.5):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, data):
+        # only to input data
+        label, input = data['label'], data['input']
+        input = (input - self.mean) / self.std
+
+        data = {'label': label, 'input': input}
+        return data
+
+class RandomFlip(object):
+    '''
+    Flip data left and right, Up and Down Randomly
+    '''
+
+    def __call__(self, data):
+        # get data
+        label, input = data['label'], data['input']
+
+        if np.random.rand() > 0.5:
+            label = np.fliplr(label)
+            input = np.fliplr(input)
+
+        if np.random.rand() > 0.5:
+            label = np.flipud(label)
+            input = np.flipud(input)
+
+        data = {'label': label, 'input':input}
+        return data
+
 ## test dataset
-dataset_train = Dataset(data_dir='datasets')
+dataset_train = Dataset(data_dir='datasets', transform=RandomFlip())
 
 ##
 data = dataset_train.__getitem__(10)
