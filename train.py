@@ -65,7 +65,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 ## Preparing Dataset and Dataloader
 transform = transforms.Compose([Normalization(mean=0.5, std=0.5), RandomFlip(), ToTensor])
 dataset_train = Dataset(data_dir=data_dir, transform=transform)
-loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size, shuffle=True, num_workers=8)
+print('--------complete dataset_train -------------')
+# loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size, shuffle=True, num_workers=8)
+loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size, shuffle=True, num_workers=4)
+print('--------complete loader_train -------------')
+
 # num_workers : num of multi-processor
 # batch_size : the number of data in one batch unit.
 
@@ -79,12 +83,15 @@ net = UNet().to(device)
 ## make optimizer and loss function
 optim = torch.optim.Adam(params=net.parameters(), lr=lr)
 fn_loss = nn.BCEWithLogitsLoss().to(device)
+print('--------complete loss and optim component -------------')
 
 ## train model
 net.train()
 loss_arr = []
 
 for batch, data in enumerate(loader_train, 1):
+
+
     # forward pass
     label = data['input'].to(device)
     input = data['input'].to(device)

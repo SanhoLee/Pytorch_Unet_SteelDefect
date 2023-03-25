@@ -33,18 +33,51 @@ class Dataset(torch.utils.data.Dataset):
                 3. defect class id ?
         '''
 
+        def filterDF(df, imgListInDir):
+            '''
+
+            :param df: raw dataframe(columns : ImageId, ClassId, EncodedPixels)
+            :param imgListInDir: images in train_images directory.
+            :return: filtered dataframe by images in the directory.
+            '''
+
+            # design df_filtered just like df, same columns
+            columns = ['ImageId', 'ClassId', 'EncodedPixels']
+            df_filtered = pd.DataFrame(columns=columns)
+
+            i = 0
+
+            for imgId in imgListInDir:
+
+                # searching imgId is exists in dataframe.
+                t1 = np.where(df['ImageId'] == imgId)[0]
+
+                # 디렉토리 파일이 df 에 없는 경우, continue
+                if len(t1) == 0:
+                    continue
+
+                else:
+                    # 디렉토리 파일이 df 에 있는 경우, df_filtered 추가
+                    # df_filtered = df_filtered.append([df[df['ImageId'] == imgId]], columns)
+                    selected_indices = list(t1)
+                    df_filtered = df_filtered.append(df.iloc[selected_indices], columns)
+
+            return df_filtered
+
+
+
         # data의 transform이 있을 경우에는 데이터 적용한다
         self.data_dir = data_dir
         self.imgs_dir = os.path.join(data_dir, 'train_images')
         self.transform = transform
-        self.df = pd.read_csv(os.path.join(data_dir, 'train.csv'))  # for label data...
 
-        # input list variable, in order to avoid not existing element in the list,
-        # Specifying the input list based on csv file.
-        lst_input = list(self.df.ImageId)
-        self.lst_input = lst_input
-        self.imgShape = np.asarray(
-            Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
+        # filtering with img List in train directory...
+        imgListInDir = list(os.listdir(self.imgs_dir))
+        df = pd.read_csv(os.path.join(data_dir, 'train.csv'))  # for label data...
+
+        self.df = filterDF(df, imgListInDir)
+        self.lst_input = list(self.df.ImageId)
+        self.imgShape = np.asarray(Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
 
     # __init__ 안에다가 함수를 정의하면, init 안에서만 call이 가능하다
     def getLabelImg(self, imgId):
@@ -155,23 +188,23 @@ class RandomFlip(object):
         return data
 
 ## test dataset
-dataset_train = Dataset(data_dir='datasets', transform=RandomFlip())
+# dataset_train = Dataset(data_dir='datasets', transform=RandomFlip())
 
 ##
-data = dataset_train.__getitem__(10)
-input = data['input']
-label = data['label']
-
-# plot data
-ax1 = plt.subplot(211)
-ax1.set_title('input')
-plt.imshow(input, cmap='gray')
-
-ax2 = plt.subplot(212)
-plt.imshow(label, cmap='gray')
-ax2.set_title('label')
-
-plt.show()
+# data = dataset_train.__getitem__(10)
+# input = data['input']
+# label = data['label']
+#
+# ## plot data
+# ax1 = plt.subplot(211)
+# ax1.set_title('input')
+# plt.imshow(input, cmap='gray')
+#
+# ax2 = plt.subplot(212)
+# plt.imshow(label, cmap='gray')
+# ax2.set_title('label')
+#
+# plt.show()
 
 ##
 
