@@ -64,8 +64,6 @@ class Dataset(torch.utils.data.Dataset):
 
             return df_filtered
 
-
-
         # data의 transform이 있을 경우에는 데이터 적용한다
         self.data_dir = data_dir
         self.imgs_dir = os.path.join(data_dir, 'train_images')
@@ -77,19 +75,26 @@ class Dataset(torch.utils.data.Dataset):
 
         self.df = filterDF(df, imgListInDir)
         self.lst_input = list(self.df.ImageId)
-        self.imgShape = np.asarray(Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
+        self.imgShape = np.asarray(
+            Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
 
     # __init__ 안에다가 함수를 정의하면, init 안에서만 call이 가능하다
     def getLabelImg(self, imgId):
         label_en_Px = list(self.df[self.df['ImageId'] == imgId].EncodedPixels)[0].split(' ')
         Px_Pos = map(int, label_en_Px[0::2])
         Px_len = map(int, label_en_Px[1::2])
-        label_oneD = np.zeros(self.imgShape[0] * self.imgShape[1], dtype=np.uint8)
+        # label_oneD = np.zeros((self.imgShape[0] * self.imgShape[1]), dtype=np.uint8)
+        label_2D = np.zeros((self.imgShape[0], self.imgShape[1], self.imgShape[2]), dtype=np.uint8)
+        label_oneD = label_2D.flatten()
+        lenOneCycle = self.imgShape[0] * self.imgShape[1]
 
-        for pos, len in zip(Px_Pos, Px_len):
-            label_oneD[pos:pos + len - 1] = 255
+        for pos, leng in zip(Px_Pos, Px_len):
+            label_oneD[pos + 0 * lenOneCycle:pos + leng - 1 + 0 * lenOneCycle] = 255
+            label_oneD[pos + 1 * lenOneCycle:pos + leng - 1 + 1 * lenOneCycle] = 255
+            label_oneD[pos + 2 * lenOneCycle:pos + leng - 1 + 2 * lenOneCycle] = 255
 
-        label = label_oneD.reshape(self.imgShape[0], self.imgShape[1], order='F')
+        # label = label_oneD.reshape(self.imgShape[0], self.imgShape[1], order='F')
+        label = label_oneD.reshape((self.imgShape[0], self.imgShape[1], 3), order='F')
 
         return label
 
@@ -129,8 +134,6 @@ class Dataset(torch.utils.data.Dataset):
         return data
 
 
-
-
 ##
 class ToTensor(object):
     '''
@@ -167,6 +170,7 @@ class Normalization(object):
         data = {'label': label, 'input': input}
         return data
 
+
 class RandomFlip(object):
     '''
     Flip data left and right, Up and Down Randomly
@@ -184,27 +188,27 @@ class RandomFlip(object):
             label = np.flipud(label)
             input = np.flipud(input)
 
-        data = {'label': label, 'input':input}
+        data = {'label': label, 'input': input}
         return data
 
+
 ## test dataset
-# dataset_train = Dataset(data_dir='datasets', transform=RandomFlip())
+dataset_train = Dataset(data_dir='datasets')
+
+#
+data = dataset_train.__getitem__(10)
+input = data['input']
+label = data['label']
+
+## plot data
+ax1 = plt.subplot(211)
+ax1.set_title('input')
+plt.imshow(input, cmap='gray')
+
+ax2 = plt.subplot(212)
+plt.imshow(label, cmap='gray')
+ax2.set_title('label')
+
+plt.show()
 
 ##
-# data = dataset_train.__getitem__(10)
-# input = data['input']
-# label = data['label']
-#
-# ## plot data
-# ax1 = plt.subplot(211)
-# ax1.set_title('input')
-# plt.imshow(input, cmap='gray')
-#
-# ax2 = plt.subplot(212)
-# plt.imshow(label, cmap='gray')
-# ax2.set_title('label')
-#
-# plt.show()
-
-##
-
