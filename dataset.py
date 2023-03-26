@@ -58,9 +58,8 @@ class Dataset(torch.utils.data.Dataset):
 
                 else:
                     # 디렉토리 파일이 df 에 있는 경우, df_filtered 추가
-                    # df_filtered = df_filtered.append([df[df['ImageId'] == imgId]], columns)
                     selected_indices = list(t1)
-                    df_filtered = df_filtered.append(df.iloc[selected_indices], columns)
+                    df_filtered = pd.concat([df_filtered, df.iloc[selected_indices]], axis=0)
 
             return df_filtered
 
@@ -83,18 +82,15 @@ class Dataset(torch.utils.data.Dataset):
         label_en_Px = list(self.df[self.df['ImageId'] == imgId].EncodedPixels)[0].split(' ')
         Px_Pos = map(int, label_en_Px[0::2])
         Px_len = map(int, label_en_Px[1::2])
-        # label_oneD = np.zeros((self.imgShape[0] * self.imgShape[1]), dtype=np.uint8)
-        label_2D = np.zeros((self.imgShape[0], self.imgShape[1], self.imgShape[2]), dtype=np.uint8)
-        label_oneD = label_2D.flatten()
-        lenOneCycle = self.imgShape[0] * self.imgShape[1]
+        label_oneD = np.zeros((self.imgShape[0] * self.imgShape[1]), dtype=np.uint8)
+        # label_2D = np.zeros((self.imgShape[0], self.imgShape[1], self.imgShape[2]), dtype=np.uint8)
+        # label_oneD = label_2D.flatten()
+        # lenOneCycle = self.imgShape[0] * self.imgShape[1]
 
         for pos, leng in zip(Px_Pos, Px_len):
-            label_oneD[pos + 0 * lenOneCycle:pos + leng - 1 + 0 * lenOneCycle] = 255
-            label_oneD[pos + 1 * lenOneCycle:pos + leng - 1 + 1 * lenOneCycle] = 255
-            label_oneD[pos + 2 * lenOneCycle:pos + leng - 1 + 2 * lenOneCycle] = 255
+            label_oneD[pos:pos + leng - 1] = 255
 
-        # label = label_oneD.reshape(self.imgShape[0], self.imgShape[1], order='F')
-        label = label_oneD.reshape((self.imgShape[0], self.imgShape[1], 3), order='F')
+        label = label_oneD.reshape((self.imgShape[0], self.imgShape[1], 1), order='F')
 
         return label
 
@@ -109,6 +105,9 @@ class Dataset(torch.utils.data.Dataset):
         # make input Image
         input_PIL = Image.open(os.path.join(self.imgs_dir, imgId))
         input = np.asarray(input_PIL)
+
+        # sqeeze input data into 1 channel.
+        input = np.delete(input, [1, 2], axis=2)
 
         # make label image
         label = self.getLabelImg(imgId)
@@ -191,24 +190,23 @@ class RandomFlip(object):
         data = {'label': label, 'input': input}
         return data
 
-
 ## test dataset
-dataset_train = Dataset(data_dir='datasets')
-
+# dataset_train = Dataset(data_dir='datasets')
 #
-data = dataset_train.__getitem__(10)
-input = data['input']
-label = data['label']
-
-## plot data
-ax1 = plt.subplot(211)
-ax1.set_title('input')
-plt.imshow(input, cmap='gray')
-
-ax2 = plt.subplot(212)
-plt.imshow(label, cmap='gray')
-ax2.set_title('label')
-
-plt.show()
+# #
+# data = dataset_train.__getitem__(10)
+# input = data['input']
+# label = data['label']
+#
+# ## plot data
+# ax1 = plt.subplot(211)
+# ax1.set_title('input')
+# plt.imshow(input, cmap='gray')
+#
+# ax2 = plt.subplot(212)
+# plt.imshow(label, cmap='gray')
+# ax2.set_title('label')
+#
+# plt.show()
 
 ##

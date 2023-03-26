@@ -49,19 +49,19 @@ class UNet(nn.Module):
 
         # Expansive path, unpool : up-convolution process and kernel size is 2x2, not default size 3x3
         self.dec5_1 = CBR2d(in_channels=1024, out_channels=512)
-        self.unpool4 = nn.ConvTranspose2d(in_channels=512, out_channels=512, kernel_size=2)
+        self.unpool4 = nn.ConvTranspose2d(in_channels=512, out_channels=512, kernel_size=2, stride=2, padding=0, bias=True)
 
         self.dec4_2 = CBR2d(in_channels=2 * 512, out_channels=512)  # considering contracting path channels.
         self.dec4_1 = CBR2d(in_channels=512, out_channels=256)
-        self.unpool3 = nn.ConvTranspose2d(in_channels=256, out_channels=256, kernel_size=2)
+        self.unpool3 = nn.ConvTranspose2d(in_channels=256, out_channels=256, kernel_size=2, stride=2, padding=0, bias=True)
 
         self.dec3_2 = CBR2d(in_channels=2 * 256, out_channels=256)  # considering contracting path channels.
         self.dec3_1 = CBR2d(in_channels=256, out_channels=128)
-        self.unpool2 = nn.ConvTranspose2d(in_channels=128, out_channels=128, kernel_size=2)
+        self.unpool2 = nn.ConvTranspose2d(in_channels=128, out_channels=128, kernel_size=2, stride=2, padding=0, bias=True)
 
         self.dec2_2 = CBR2d(in_channels=2 * 128, out_channels=128)  # considering contracting path channels.
         self.dec2_1 = CBR2d(in_channels=128, out_channels=64)
-        self.unpool1 = nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=2)
+        self.unpool1 = nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=2, stride=2, padding=0, bias=True)
 
         self.dec1_2 = CBR2d(in_channels=2 * 64, out_channels=64)
         self.dec1_1 = CBR2d(in_channels=64, out_channels=64)
