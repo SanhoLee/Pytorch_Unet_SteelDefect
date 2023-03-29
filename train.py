@@ -112,7 +112,7 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
 
     for batch, data in enumerate(loader_train, 1):
         # forward pass
-        label = data['input'].to(device)
+        label = data['label'].to(device)
         input = data['input'].to(device)
 
         # getting output by feeding input data.
