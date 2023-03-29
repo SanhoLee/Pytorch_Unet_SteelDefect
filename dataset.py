@@ -12,6 +12,8 @@ from zipfile import ZipFile
 
 import torch
 import torch.utils.data
+from torchvision import transforms
+from torch.utils.data import DataLoader
 
 data_dir = './datasets'
 
@@ -83,9 +85,6 @@ class Dataset(torch.utils.data.Dataset):
         Px_Pos = map(int, label_en_Px[0::2])
         Px_len = map(int, label_en_Px[1::2])
         label_oneD = np.zeros((self.imgShape[0] * self.imgShape[1]), dtype=np.uint8)
-        # label_2D = np.zeros((self.imgShape[0], self.imgShape[1], self.imgShape[2]), dtype=np.uint8)
-        # label_oneD = label_2D.flatten()
-        # lenOneCycle = self.imgShape[0] * self.imgShape[1]
 
         for pos, leng in zip(Px_Pos, Px_len):
             label_oneD[pos:pos + leng - 1] = 255
@@ -106,7 +105,7 @@ class Dataset(torch.utils.data.Dataset):
         input_PIL = Image.open(os.path.join(self.imgs_dir, imgId))
         input = np.asarray(input_PIL)
 
-        # sqeeze input data into 1 channel.
+        # squeeze input data into 1 channel.
         input = np.delete(input, [1, 2], axis=2)
 
         # make label image
@@ -116,7 +115,7 @@ class Dataset(torch.utils.data.Dataset):
         input = input / 255.0
         label = label / 255.0
 
-        # Check Dimenstion and add one dimension.
+        # Check Dimension and add one dimension.
         if input.ndim == 2:
             input = input[:, :, np.newaxis]
         if label.ndim == 2:
@@ -190,13 +189,17 @@ class RandomFlip(object):
         data = {'label': label, 'input': input}
         return data
 
+
+
 ## test dataset
-# dataset_train = Dataset(data_dir='datasets')
-#
-# #
-# data = dataset_train.__getitem__(10)
+# data = Dataset(data_dir=data_dir).__getitem__(10)
 # input = data['input']
 # label = data['label']
+#
+# ##
+# print("Input SHAPE : ", input.shape)
+# print('type of input data : %s' % type(input))
+# print('type of label data : %s' % type(label))
 #
 # ## plot data
 # ax1 = plt.subplot(211)
