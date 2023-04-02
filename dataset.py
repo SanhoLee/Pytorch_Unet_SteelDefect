@@ -22,7 +22,7 @@ data_dir = './datasets'
 
 class Dataset(torch.utils.data.Dataset):
     # def __init__(self, data_dir, transform=None):
-    def __init__(self, data_dir, transform=None):
+    def __init__(self, data_dir, dfSrc=None, transform=None):
         '''
         >>
             origin data :
@@ -44,7 +44,7 @@ class Dataset(torch.utils.data.Dataset):
             '''
 
             # design df_filtered just like df, same columns
-            columns = ['ImageId', 'ClassId', 'EncodedPixels']
+            columns = ['ImageId', 'EncodedPixels']
             df_filtered = pd.DataFrame(columns=columns)
 
             i = 0
@@ -67,21 +67,27 @@ class Dataset(torch.utils.data.Dataset):
 
         # data의 transform이 있을 경우에는 데이터 적용한다
         self.data_dir = data_dir
-        self.imgs_dir = os.path.join(data_dir, 'train_images')
+        self.dfSrc = dfSrc
         self.transform = transform
 
-        # filtering with img List in train directory...
-        imgListInDir = list(os.listdir(self.imgs_dir))
-        df = pd.read_csv(os.path.join(data_dir, 'train.csv'))  # for label data...
 
-        self.df = filterDF(df, imgListInDir)
-        self.lst_input = list(self.df.ImageId)
+
+        if self.dfSrc is not None:
+            self.imgs_dir = os.path.join(data_dir, 'train_images')
+
+            # filtering with img List in train directory...
+            self.dfSrc = filterDF(dfSrc, list(os.listdir(self.imgs_dir)))
+            self.lst_input = list(self.dfSrc.ImageId)
+        else:
+            self.imgs_dir = os.path.join(data_dir, 'test_images')
+            self.lst_input = os.listdir(self.imgs_dir)
+
         self.imgShape = np.asarray(
             Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
 
     # __init__ 안에다가 함수를 정의하면, init 안에서만 call이 가능하다
     def getLabelImg(self, imgId):
-        label_en_Px = list(self.df[self.df['ImageId'] == imgId].EncodedPixels)[0].split(' ')
+        label_en_Px = list(self.dfSrc[self.dfSrc['ImageId'] == imgId].EncodedPixels)[0].split(' ')
         Px_Pos = map(int, label_en_Px[0::2])
         Px_len = map(int, label_en_Px[1::2])
         label_oneD = np.zeros((self.imgShape[0] * self.imgShape[1]), dtype=np.uint8)
@@ -95,7 +101,7 @@ class Dataset(torch.utils.data.Dataset):
 
     #  Data length, just the size of all data in dataframe
     def __len__(self):
-        return len(self.lst_input)
+        return self.dfSrc.shape[0] if self.dfSrc is not None else len(self.lst_input)
 
     #  Get a specific index data, method of // instanceName(index)
     def __getitem__(self, index):
@@ -109,11 +115,14 @@ class Dataset(torch.utils.data.Dataset):
         input = np.delete(input, [1, 2], axis=2)
 
         # make label image
-        label = self.getLabelImg(imgId)
+        if self.dfSrc is not None:
+            # Get label img and make img pixel value into 0 to 1.
+            label = self.getLabelImg(imgId)
+            label = label / 255.0
+        else:
+            label = None
 
-        # make array value into 0 to 1.
         input = input / 255.0
-        label = label / 255.0
 
         # Check Dimension and add one dimension.
         if input.ndim == 2:
@@ -125,9 +134,9 @@ class Dataset(torch.utils.data.Dataset):
         data = {'input': input, 'label': label}
         # data = {'input': input}
 
-        if self.transform:
+        if self.transform:  # only when training model.
             data = self.transform(data)
-        #     # transform 클래스의 return 값은 여기서 선언한 data 사전형과 동일하게 해줘야 한다.
+        # transform 클래스의 return 값은 여기서 선언한 data 사전형과 동일하게 해줘야 한다.
 
         return data
 
@@ -188,8 +197,6 @@ class RandomFlip(object):
 
         data = {'label': label, 'input': input}
         return data
-
-
 
 ## test dataset
 # data = Dataset(data_dir=data_dir).__getitem__(10)
