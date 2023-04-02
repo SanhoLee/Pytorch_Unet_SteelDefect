@@ -118,11 +118,12 @@ class Dataset(torch.utils.data.Dataset):
         if self.dfSrc is not None:
             # Get label img and make img pixel value into 0 to 1.
             label = self.getLabelImg(imgId)
-            label = label / 255.0
         else:
-            label = None
+            # just copy input data into label, in order to avoid error.
+            label = input
 
         input = input / 255.0
+        label = label / 255.0
 
         # Check Dimension and add one dimension.
         if input.ndim == 2:

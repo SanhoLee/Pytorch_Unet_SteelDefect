@@ -122,7 +122,7 @@ num_data_train = len(dataset_train)
 num_batch_train = np.ceil(num_data_train / batch_size)  # 전체 데이터에 대해 train 을 반복되는 iteration 횟수와 같은 개념이 된다.
 
 ## for validation
-dataset_val = Dataset(data_dir=data_dir, dfSrc=valid_input, transform=None)
+dataset_val = Dataset(data_dir=data_dir, dfSrc=valid_input, transform=transform)
 loader_val = DataLoader(dataset=dataset_val, batch_size=batch_size, shuffle=False, num_workers=8)
 num_data_val = len(dataset_val)
 num_batch_val = np.ceil(num_data_val / batch_size)
@@ -174,16 +174,6 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
             writer_train.add_image('input', input, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
             writer_train.add_image('output', output, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
 
-        # save data samples..as png file
-        # plt.imsave(os.path.join(result_dir, 'png', 'label_b%04d.png' % batch), label[0].squeeze(), cmap='gray')
-        # plt.imsave(os.path.join(result_dir, 'png', 'input_b%04d.png' % batch), input[0].squeeze(), cmap='gray')
-        # plt.imsave(os.path.join(result_dir, 'png', 'output_b%04d.png' % batch), output[0].squeeze(), cmap='gray')
-        #
-        # # save data samples..as npy file
-        # np.save(os.path.join(result_dir, 'numpy', 'label_b%04d.npy' % batch), label[0].squeeze())
-        # np.save(os.path.join(result_dir, 'numpy', 'input_b%04d.npy' % batch), input[0].squeeze())
-        # np.save(os.path.join(result_dir, 'numpy', 'output_b%04d.npy' % batch), output[0].squeeze())
-
     # save loss value.
     writer_train.add_scalar("loss", np.mean(loss_arr), epoch)
 
@@ -210,28 +200,34 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
             loss_arr += [loss.item()]
 
             print("Valid : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (
-                epoch, num_epoch, batch, num_batch_train, np.mean(loss_arr)))
+                epoch, num_epoch, batch, num_batch_val, np.mean(loss_arr)))
 
             # set save data
             label = fn_toNumpy(label)
             input = fn_toNumpy(fn_denorm(input, mean=0.5, std=0.5))
             output = fn_toNumpy(fn_class(output))
 
-            print("Label SHAPE : ", label.shape)
-            print("Input SHAPE : ", input.shape)
-            print("Output SHAPE : ", output.shape)
-
             # save img data along tensorboard
             if batch == num_batch_val:
-                writer_train.add_image('label', label, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
-                writer_train.add_image('input', input, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
-                writer_train.add_image('output', output, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
+                writer_val.add_image('label', label, num_batch_val * (epoch - 1) + batch, dataformats='NHWC')
+                writer_val.add_image('input', input, num_batch_val * (epoch - 1) + batch, dataformats='NHWC')
+                writer_val.add_image('output', output, num_batch_val * (epoch - 1) + batch, dataformats='NHWC')
+
+            # save data samples..as png file
+            if epoch % 5 == 0:
+                plt.imsave(os.path.join(result_dir, 'png', 'epoch%04d_label.png' % epoch), label[-1].squeeze(), cmap='gray')
+                plt.imsave(os.path.join(result_dir, 'png', 'epoch%04d_input.png' % epoch), input[-1].squeeze(), cmap='gray')
+                plt.imsave(os.path.join(result_dir, 'png', 'epoch%04d_output.png' % epoch), output[-1].squeeze(), cmap='gray')
+                # save data samples..as npy file
+                np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_label.npy' % epoch), label[-1].squeeze())
+                np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_input.npy' % epoch), input[-1].squeeze())
+                np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_output.npy' % epoch), output[-1].squeeze())
 
     # save loss value for valid process.
     writer_val.add_scalar("loss", np.mean(loss_arr), epoch)
 
     # save network at specified checkpoint.
-    if epoch % 2 == 0:
+    if epoch % 5 == 0:
         save(ckpt_dir, net, optim, epoch)
 
 writer_train.close()
