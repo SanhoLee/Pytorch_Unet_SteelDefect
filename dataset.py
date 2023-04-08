@@ -50,29 +50,27 @@ class Dataset(torch.utils.data.Dataset):
 
     #  Data length, just the size of all data in dataframe
     def __len__(self):
-        return self.dfSrc.shape[0] if self.dfSrc is not None else len(self.lst_input)
+        return len(self.dfSrc) if self.dfSrc is not None else len(self.lst_input)
 
     #  Get a specific index data, method of // instanceName(index)
     def __getitem__(self, index):
-        imgId = self.lst_input[index]
-
         # make input Image
-        input_PIL = Image.open(os.path.join(self.imgs_dir, imgId))
+        input_PIL = Image.open(os.path.join(self.imgs_dir, self.dfSrc.iloc[index].name))
         input = np.asarray(input_PIL)
-
-        # squeeze input data into 1 channel.
-        input = np.delete(input, [1, 2], axis=2)
 
         # make label image
         if self.dfSrc is not None:
-            # Get label img and make img pixel value into 0 to 1.
-            label = self.getLabelImg(imgId)
+            # get label img(h,w,c=4) and imgId
+            imgId, label = getLabelImg(dfSrc=self.dfSrc, idx=index, shape=input.shape)
         else:
-            # just copy input data into label, in order to avoid error.
+            # just copy input data into label, in order to avoiding error.
             label = input
 
         input = input / 255.0
         label = label / 255.0
+
+        print('input shape : ', input.shape)
+        print('label shape : ', label.shape)
 
         # Check Dimension and add one dimension.
         if input.ndim == 2:
@@ -82,7 +80,6 @@ class Dataset(torch.utils.data.Dataset):
 
         # make data object as dict type for label, input
         data = {'input': input, 'label': label}
-        # data = {'input': input}
 
         if self.transform:  # only when training model.
             data = self.transform(data)
@@ -91,21 +88,37 @@ class Dataset(torch.utils.data.Dataset):
         return data
 
 
-def getLabelImg(self, imgId):
-    label_en_Px = list(self.dfSrc[self.dfSrc['ImageId'] == imgId].EncodedPixels)[0].split(' ')
-    Px_Pos = map(int, label_en_Px[0::2])
-    Px_len = map(int, label_en_Px[1::2])
-    label_oneD = np.zeros((self.imgShape[0] * self.imgShape[1]), dtype=np.uint8)
+##
 
-    # masks = np.zeros((self.imgShape[0], self.imgShape[1], 4), dtype=np.float32)
-    # 4 : class 1~4
+# imgShape.shape : (height, width, )
+def getLabelImg(dfSrc, idx, shape):
+    '''
 
-    for pos, leng in zip(Px_Pos, Px_len):
-        label_oneD[pos:pos + leng - 1] = 255
+    :param dfSrc: pivot dataframe.
+    :param idx: row index of dataframe
+    :param shape: image shape (h, w, c=useless)
+    :return: fname, label(h,w,c=4)
 
-    label = label_oneD.reshape((self.imgShape[0], self.imgShape[1], 1), order='F')
+    '''
 
-    return label
+    fname = dfSrc.iloc[idx].name
+    labels = dfSrc.iloc[idx][:4]  # data of channels : 1~4
+    masks = np.zeros((shape[0], shape[1], 4), dtype=np.float32)
+
+    # labels.values : [1,2,3,4]
+    for i, label in enumerate(labels.values):  # labels.values : list of each channel data
+        if label is not np.nan:
+            label = label.split(' ')
+            position = map(int, label[0::2])
+            length = map(int, label[1::2])
+            mask = np.zeros(shape[0] * shape[1], dtype=np.uint8)
+            for pos, le in zip(position, length):
+                mask[pos:pos + le - 1] = 255
+
+            # map to origianl masks variable.
+            masks[:, :, i] = mask.reshape(shape[0], shape[1], order='F')
+
+    return fname, masks
 
 
 def filterDF(df, imgListInDir):
@@ -205,13 +218,17 @@ data = Dataset(data_dir=data_dir, dfSrc=df, transform=transform)
 
 ##
 data = data.__getitem__(10)
+
+##
 input = data['input']
 label = data['label']
 
 ##
 print("Input SHAPE : ", input.shape)
-print('type of input data : %s' % type(input))
-print('type of label data : %s' % type(label))
+print("label SHAPE : ", label.shape)
+
+print('type of input data : ', type(input))
+print('type of label data : ', type(label))
 
 ## simple function for save img data.(tensor to numpy... etc)
 fn_toNumpy = lambda x: x.to('cpu').detach().numpy().transpose(1, 2, 0)
