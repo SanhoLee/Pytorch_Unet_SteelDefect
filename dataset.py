@@ -34,70 +34,19 @@ class Dataset(torch.utils.data.Dataset):
                 2. label img    (numpy array),
                 3. defect class id ?
         '''
-
-        def filterDF(df, imgListInDir):
-            '''
-
-            :param df: raw dataframe(columns : ImageId, ClassId, EncodedPixels)
-            :param imgListInDir: images in train_images directory.
-            :return: filtered dataframe by images in the directory.
-            '''
-
-            # design df_filtered just like df, same columns
-            columns = ['ImageId', 'EncodedPixels']
-            df_filtered = pd.DataFrame(columns=columns)
-
-            i = 0
-
-            for imgId in imgListInDir:
-
-                # searching imgId is exists in dataframe.
-                t1 = np.where(df['ImageId'] == imgId)[0]
-
-                # 디렉토리 파일이 df 에 없는 경우, continue
-                if len(t1) == 0:
-                    continue
-
-                else:
-                    # 디렉토리 파일이 df 에 있는 경우, df_filtered 추가
-                    selected_indices = list(t1)
-                    df_filtered = pd.concat([df_filtered, df.iloc[selected_indices]], axis=0)
-
-            return df_filtered
-
-        # data의 transform이 있을 경우에는 데이터 적용한다
         self.data_dir = data_dir
         self.dfSrc = dfSrc
         self.transform = transform
 
-
-
         if self.dfSrc is not None:
             self.imgs_dir = os.path.join(data_dir, 'train_images')
-
-            # filtering with img List in train directory...
-            self.dfSrc = filterDF(dfSrc, list(os.listdir(self.imgs_dir)))
-            self.lst_input = list(self.dfSrc.ImageId)
+            self.lst_input = self.dfSrc.index
         else:
             self.imgs_dir = os.path.join(data_dir, 'test_images')
             self.lst_input = os.listdir(self.imgs_dir)
 
         self.imgShape = np.asarray(
             Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
-
-    # __init__ 안에다가 함수를 정의하면, init 안에서만 call이 가능하다
-    def getLabelImg(self, imgId):
-        label_en_Px = list(self.dfSrc[self.dfSrc['ImageId'] == imgId].EncodedPixels)[0].split(' ')
-        Px_Pos = map(int, label_en_Px[0::2])
-        Px_len = map(int, label_en_Px[1::2])
-        label_oneD = np.zeros((self.imgShape[0] * self.imgShape[1]), dtype=np.uint8)
-
-        for pos, leng in zip(Px_Pos, Px_len):
-            label_oneD[pos:pos + leng - 1] = 255
-
-        label = label_oneD.reshape((self.imgShape[0], self.imgShape[1], 1), order='F')
-
-        return label
 
     #  Data length, just the size of all data in dataframe
     def __len__(self):
@@ -140,6 +89,45 @@ class Dataset(torch.utils.data.Dataset):
         # transform 클래스의 return 값은 여기서 선언한 data 사전형과 동일하게 해줘야 한다.
 
         return data
+
+
+def getLabelImg(self, imgId):
+    label_en_Px = list(self.dfSrc[self.dfSrc['ImageId'] == imgId].EncodedPixels)[0].split(' ')
+    Px_Pos = map(int, label_en_Px[0::2])
+    Px_len = map(int, label_en_Px[1::2])
+    label_oneD = np.zeros((self.imgShape[0] * self.imgShape[1]), dtype=np.uint8)
+
+    # masks = np.zeros((self.imgShape[0], self.imgShape[1], 4), dtype=np.float32)
+    # 4 : class 1~4
+
+    for pos, leng in zip(Px_Pos, Px_len):
+        label_oneD[pos:pos + leng - 1] = 255
+
+    label = label_oneD.reshape((self.imgShape[0], self.imgShape[1], 1), order='F')
+
+    return label
+
+
+def filterDF(df, imgListInDir):
+    '''
+
+    :param df: raw dataframe(columns : ImageId, ClassId, EncodedPixels)
+    :param imgListInDir: images in train_images directory.
+    :return: filtered dataframe by images in the directory.
+    '''
+
+    # design df_filtered just like df, same columns
+    columns = df.columns.values
+
+    # for imgId in imgListInDir:
+    for ImageId in list(df.ImageId):
+
+        idx = df.loc[df['ImageId'] == ImageId].index[0]
+        if ImageId not in imgListInDir:
+            # drop this row.
+            df = df.drop([idx], axis=0)
+
+    return df
 
 
 ##
@@ -199,25 +187,50 @@ class RandomFlip(object):
         data = {'label': label, 'input': input}
         return data
 
+
 ## test dataset
-# data = Dataset(data_dir=data_dir).__getitem__(10)
-# input = data['input']
-# label = data['label']
-#
-# ##
-# print("Input SHAPE : ", input.shape)
-# print('type of input data : %s' % type(input))
-# print('type of label data : %s' % type(label))
-#
-# ## plot data
-# ax1 = plt.subplot(211)
-# ax1.set_title('input')
-# plt.imshow(input, cmap='gray')
-#
-# ax2 = plt.subplot(212)
-# plt.imshow(label, cmap='gray')
-# ax2.set_title('label')
-#
-# plt.show()
+df = pd.read_csv(os.path.join(data_dir, 'train.csv'))
+
+##
+df = filterDF(df=df, imgListInDir=os.listdir(os.path.join(data_dir, 'train_images')))
+
+##
+df = df.pivot(index='ImageId', columns='ClassId',
+              values='EncodedPixels')  # pivot shape 으로 변형해서, 한 이미지 아이디에 대해서, 클래스별 'EncodedPixels' 값을 할당해준다.
+df['defects'] = df.count(axis=1)  # column direction.
+
+## Transforming data
+transform = transforms.Compose([Normalization(mean=0.5, std=0.5), RandomFlip(), ToTensor()])
+data = Dataset(data_dir=data_dir, dfSrc=df, transform=transform)
+
+##
+data = data.__getitem__(10)
+input = data['input']
+label = data['label']
+
+##
+print("Input SHAPE : ", input.shape)
+print('type of input data : %s' % type(input))
+print('type of label data : %s' % type(label))
+
+## simple function for save img data.(tensor to numpy... etc)
+fn_toNumpy = lambda x: x.to('cpu').detach().numpy().transpose(1, 2, 0)
+fn_denorm = lambda x, mean, std: (x * std) + mean
+fn_class = lambda x: 1.0 * (x > 0.5)
+
+##
+label = fn_toNumpy(label)
+input = fn_toNumpy(fn_denorm(input, mean=0.5, std=0.5))
+
+## plot data
+ax1 = plt.subplot(211)
+ax1.set_title('input')
+plt.imshow(input, cmap='gray')
+
+ax2 = plt.subplot(212)
+plt.imshow(label, cmap='gray')
+ax2.set_title('label')
+
+plt.show()
 
 ##
