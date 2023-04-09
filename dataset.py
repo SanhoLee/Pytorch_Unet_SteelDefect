@@ -24,15 +24,10 @@ class Dataset(torch.utils.data.Dataset):
     # def __init__(self, data_dir, transform=None):
     def __init__(self, data_dir, dfSrc=None, transform=None):
         '''
-        >>
-            origin data :
-                1. input img filename,
-                2. label encoded string,
-                3. defect class id ?
-            convert to  :
-                1. input img    (numpy array),
-                2. label img    (numpy array),
-                3. defect class id ?
+
+        :param data_dir:
+        :param dfSrc: pivot dataframe, { index : ImageID, columns : ClassId, values : Encoded_Pixels }
+        :param transform:
         '''
         self.data_dir = data_dir
         self.dfSrc = dfSrc
@@ -45,8 +40,7 @@ class Dataset(torch.utils.data.Dataset):
             self.imgs_dir = os.path.join(data_dir, 'test_images')
             self.lst_input = os.listdir(self.imgs_dir)
 
-        self.imgShape = np.asarray(
-            Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
+        self.imgShape = np.asarray(Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
 
     #  Data length, just the size of all data in dataframe
     def __len__(self):
@@ -201,53 +195,53 @@ class RandomFlip(object):
         return data
 
 
-## test dataset
-df = pd.read_csv(os.path.join(data_dir, 'train.csv'))
-
-##
-df = filterDF(df=df, imgListInDir=os.listdir(os.path.join(data_dir, 'train_images')))
-
-##
-df = df.pivot(index='ImageId', columns='ClassId',
-              values='EncodedPixels')  # pivot shape 으로 변형해서, 한 이미지 아이디에 대해서, 클래스별 'EncodedPixels' 값을 할당해준다.
-df['defects'] = df.count(axis=1)  # column direction.
-
-## Transforming data
-transform = transforms.Compose([Normalization(mean=0.5, std=0.5), RandomFlip(), ToTensor()])
-data = Dataset(data_dir=data_dir, dfSrc=df, transform=transform)
-
-##
-data = data.__getitem__(10)
-
-##
-input = data['input']
-label = data['label']
-
-##
-print("Input SHAPE : ", input.shape)
-print("label SHAPE : ", label.shape)
-
-print('type of input data : ', type(input))
-print('type of label data : ', type(label))
-
-## simple function for save img data.(tensor to numpy... etc)
-fn_toNumpy = lambda x: x.to('cpu').detach().numpy().transpose(1, 2, 0)
-fn_denorm = lambda x, mean, std: (x * std) + mean
-fn_class = lambda x: 1.0 * (x > 0.5)
-
-##
-label = fn_toNumpy(label)
-input = fn_toNumpy(fn_denorm(input, mean=0.5, std=0.5))
-
-## plot data
-ax1 = plt.subplot(211)
-ax1.set_title('input')
-plt.imshow(input, cmap='gray')
-
-ax2 = plt.subplot(212)
-plt.imshow(label, cmap='gray')
-ax2.set_title('label')
-
-plt.show()
+# ## test code.......
+# df = pd.read_csv(os.path.join(data_dir, 'train.csv'))
+#
+# ##
+# df = filterDF(df=df, imgListInDir=os.listdir(os.path.join(data_dir, 'train_images')))
+#
+# ##
+# df = df.pivot(index='ImageId', columns='ClassId',
+#               values='EncodedPixels')  # pivot shape 으로 변형해서, 한 이미지 아이디에 대해서, 클래스별 'EncodedPixels' 값을 할당해준다.
+# df['defects'] = df.count(axis=1)  # column direction.
+#
+# ## Transforming data
+# transform = transforms.Compose([Normalization(mean=0.5, std=0.5), RandomFlip(), ToTensor()])
+# data = Dataset(data_dir=data_dir, dfSrc=df, transform=transform)
+#
+# ##
+# data = data.__getitem__(10)
+#
+# ##
+# input = data['input']
+# label = data['label']
+#
+# ##
+# print("Input SHAPE : ", input.shape)
+# print("label SHAPE : ", label.shape)
+#
+# print('type of input data : ', type(input))
+# print('type of label data : ', type(label))
+#
+# ## simple function for save img data.(tensor to numpy... etc)
+# fn_toNumpy = lambda x: x.to('cpu').detach().numpy().transpose(1, 2, 0)
+# fn_denorm = lambda x, mean, std: (x * std) + mean
+# fn_class = lambda x: 1.0 * (x > 0.5)
+#
+# ##
+# label = fn_toNumpy(label)
+# input = fn_toNumpy(fn_denorm(input, mean=0.5, std=0.5))
+#
+# ## plot data
+# ax1 = plt.subplot(211)
+# ax1.set_title('input')
+# plt.imshow(input, cmap='gray')
+#
+# ax2 = plt.subplot(212)
+# plt.imshow(label, cmap='gray')
+# ax2.set_title('label')
+#
+# plt.show()
 
 ##

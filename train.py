@@ -104,25 +104,26 @@ fn_loss = nn.BCEWithLogitsLoss().to(device)
 df = pd.read_csv(os.path.join(data_dir, 'train.csv'))
 
 ## split DF into 2 sets, Train(0.8) and Valid(0.2) / All data is type of Dataframe.
-dropCols = ['ClassId']
-X = df.drop(columns=dropCols).copy()
-y = df[dropCols]
-train_input, valid_input, train_class, valid_class = train_test_split(X, y, train_size=0.8)
+df = filterDF(df=df, imgListInDir=os.listdir(os.path.join(data_dir, 'train_images')))
+df = df.pivot(index='ImageId', columns='ClassId', values='EncodedPixels')  # pivot shape 으로 변형해서, 한 이미지 아이디에 대해서, 클래스별 'EncodedPixels' 값을 할당해준다.
+df['defects'] = df.count(axis=1)  # column direction.
 
-print("The Number of TRAIN Data : %d " % train_input.shape[0])
-print("The Number of VALID Data : %d " % valid_input.shape[0])
+train_df, val_df = train_test_split(df, test_size=0.2, stratify=df['defects'], random_state=69)
+
+print("The Number of TRAIN Data : %d " % len(train_df))
+print("The Number of VALID Data : %d " % len(val_df))
 
 ## Transforming data
 transform = transforms.Compose([Normalization(mean=0.5, std=0.5), RandomFlip(), ToTensor()])
 
 ## for train
-dataset_train = Dataset(data_dir=data_dir, dfSrc=train_input, transform=transform)
+dataset_train = Dataset(data_dir=data_dir, dfSrc=train_df, transform=transform)
 loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size, shuffle=True, num_workers=8)
 num_data_train = len(dataset_train)
 num_batch_train = np.ceil(num_data_train / batch_size)  # 전체 데이터에 대해 train 을 반복되는 iteration 횟수와 같은 개념이 된다.
 
 ## for validation
-dataset_val = Dataset(data_dir=data_dir, dfSrc=valid_input, transform=transform)
+dataset_val = Dataset(data_dir=data_dir, dfSrc=val_df, transform=transform)
 loader_val = DataLoader(dataset=dataset_val, batch_size=batch_size, shuffle=False, num_workers=8)
 num_data_val = len(dataset_val)
 num_batch_val = np.ceil(num_data_val / batch_size)
@@ -163,16 +164,22 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
         print("TRAIN : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (
             epoch, num_epoch, batch, num_batch_train, np.mean(loss_arr)))
 
+        print('tensor, input.shape : ', input.shape)
+        print('tensor, output.shape : ', output.shape)
+
         # set save data
         label = fn_toNumpy(label)
         input = fn_toNumpy(fn_denorm(input, mean=0.5, std=0.5))
         output = fn_toNumpy(fn_class(output))
 
         # save img data along tensorboard
-        if batch == num_batch_train:
+        if batch % 2 == 0:
             writer_train.add_image('label', label, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
             writer_train.add_image('input', input, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
             writer_train.add_image('output', output, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
+            # checking,,test
+            print('tensor, input.shape : ', input.shape)
+            print('tensor, output.shape : ', output.shape)
 
     # save loss value.
     writer_train.add_scalar("loss", np.mean(loss_arr), epoch)

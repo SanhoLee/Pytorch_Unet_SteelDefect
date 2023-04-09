@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 
 ##
+# todo, 1 how to feed label data into model,
+# todo, 2 how to set resnet pre-trained model into Unet Class.
 class UNet(nn.Module):
     def __init__(self):
         super(UNet, self).__init__()
@@ -67,7 +69,10 @@ class UNet(nn.Module):
         self.dec1_1 = CBR2d(in_channels=64, out_channels=64)
 
         # final convolution layer.
-        self.fc = nn.Conv2d(in_channels=64, out_channels=1, kernel_size=1, stride=1, padding=0, bias=True)
+        # self.fc = nn.Conv2d(in_channels=64, out_channels=1, kernel_size=1, stride=1, padding=0, bias=True)
+
+        # set final output channel class as 4
+        self.fc = nn.Conv2d(in_channels=64, out_channels=4, kernel_size=1, stride=1, padding=0, bias=True)
 
 ##
     def forward(self, x):
