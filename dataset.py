@@ -16,6 +16,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 
 data_dir = './datasets'
+result_dir = './result'
 
 
 ## Dataloader
@@ -40,7 +41,8 @@ class Dataset(torch.utils.data.Dataset):
             self.imgs_dir = os.path.join(data_dir, 'test_images')
             self.lst_input = os.listdir(self.imgs_dir)
 
-        self.imgShape = np.asarray(Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
+        self.imgShape = np.asarray(
+            Image.open(os.path.join(self.imgs_dir, self.lst_input[0]))).shape  # tuple (height, width, channels)
 
     #  Data length, just the size of all data in dataframe
     def __len__(self):
@@ -52,6 +54,10 @@ class Dataset(torch.utils.data.Dataset):
         input_PIL = Image.open(os.path.join(self.imgs_dir, self.dfSrc.iloc[index].name))
         input = np.asarray(input_PIL)
 
+        # # squeeze input data into 1 channel.
+        # (cautious) when initial layer of model input should be 1.
+        # input = np.delete(input, [1, 2], axis=2)
+
         # make label image
         if self.dfSrc is not None:
             # get label img(h,w,c=4) and imgId
@@ -62,9 +68,6 @@ class Dataset(torch.utils.data.Dataset):
 
         input = input / 255.0
         label = label / 255.0
-
-        print('input shape : ', input.shape)
-        print('label shape : ', label.shape)
 
         # Check Dimension and add one dimension.
         if input.ndim == 2:
@@ -173,7 +176,6 @@ class Normalization(object):
         data = {'label': label, 'input': input}
         return data
 
-
 class RandomFlip(object):
     '''
     Flip data left and right, Up and Down Randomly
@@ -195,53 +197,62 @@ class RandomFlip(object):
         return data
 
 
-# ## test code.......
-# df = pd.read_csv(os.path.join(data_dir, 'train.csv'))
+## checking // read npy files
+# res_npy_dir = os.path.join(result_dir, 'numpy')
+#
+# ix = 2
+# input_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_input.npy' % (ix)))
+# label_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_label.npy' % (ix)))
+# output_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_output.npy' % (ix)))
 #
 # ##
-# df = filterDF(df=df, imgListInDir=os.listdir(os.path.join(data_dir, 'train_images')))
+# # fn_transpose = lambda x: np.transpose(x, (0, 3, 1, 2))  # (n,c,h,w)
+# # fn_transpose_b = lambda x: np.transpose(x, (0, 2, 3, 1))  # (n,h,w,c)
+# #
+# # # input_npy = fn_transpose(input_npy)
+# # label_npy = fn_transpose(label_npy)
+# # output_npy = fn_transpose(output_npy)
 #
-# ##
-# df = df.pivot(index='ImageId', columns='ClassId',
-#               values='EncodedPixels')  # pivot shape 으로 변형해서, 한 이미지 아이디에 대해서, 클래스별 'EncodedPixels' 값을 할당해준다.
-# df['defects'] = df.count(axis=1)  # column direction.
+# ## plot input data // label
+# target = label_npy
+# batch_num = 0
 #
-# ## Transforming data
-# transform = transforms.Compose([Normalization(mean=0.5, std=0.5), RandomFlip(), ToTensor()])
-# data = Dataset(data_dir=data_dir, dfSrc=df, transform=transform)
+# ax0 = plt.subplot(511)
+# plt.imshow(input_npy[batch_num], cmap='gray')
 #
-# ##
-# data = data.__getitem__(10)
+# ax1 = plt.subplot(512)
+# plt.imshow(target[batch_num][:, :, :1], cmap='gray')
 #
-# ##
-# input = data['input']
-# label = data['label']
+# ax2 = plt.subplot(513)
+# plt.imshow(target[batch_num][:, :, 1:2], cmap='gray')
 #
-# ##
-# print("Input SHAPE : ", input.shape)
-# print("label SHAPE : ", label.shape)
+# ax3 = plt.subplot(514)
+# plt.imshow(target[batch_num][:, :, 2:3], cmap='gray')
 #
-# print('type of input data : ', type(input))
-# print('type of label data : ', type(label))
+# ax4 = plt.subplot(515)
+# plt.imshow(target[batch_num][:, :, 3:4], cmap='gray')
 #
-# ## simple function for save img data.(tensor to numpy... etc)
-# fn_toNumpy = lambda x: x.to('cpu').detach().numpy().transpose(1, 2, 0)
-# fn_denorm = lambda x, mean, std: (x * std) + mean
-# fn_class = lambda x: 1.0 * (x > 0.5)
+# plt.show()
 #
-# ##
-# label = fn_toNumpy(label)
-# input = fn_toNumpy(fn_denorm(input, mean=0.5, std=0.5))
+# ## plot input data // output
+# target2 = output_npy
 #
-# ## plot data
-# ax1 = plt.subplot(211)
-# ax1.set_title('input')
-# plt.imshow(input, cmap='gray')
+# ax10 = plt.subplot(511)
+# plt.imshow(input_npy[batch_num], cmap='gray')
 #
-# ax2 = plt.subplot(212)
-# plt.imshow(label, cmap='gray')
-# ax2.set_title('label')
+# ax11 = plt.subplot(512)
+# plt.imshow(target2[batch_num][:, :, :1], cmap='gray')
+#
+# ax12 = plt.subplot(513)
+# plt.imshow(target2[batch_num][:, :, 1:2], cmap='gray')
+#
+# ax13 = plt.subplot(514)
+# plt.imshow(target2[batch_num][:, :, 2:3], cmap='gray')
+#
+# ax14 = plt.subplot(515)
+# plt.imshow(target2[batch_num][:, :, 3:4], cmap='gray')
 #
 # plt.show()
 
 ##
+

@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from dataset import *
 from utils import *
-from model import UNet
+from model_pt import UNet
 
 ## input Training Parameters by User
 
@@ -46,16 +46,6 @@ log_dir = args.log_dir
 result_dir = args.result_dir
 mode = args.mode
 train_continue = args.train_continue
-
-# lr = 1e-4
-# batch_size = 4
-# num_epoch = 5
-# data_dir = "./datasets"
-# ckpt_dir = "./checkpoint"
-# log_dir = "./log"
-# result_dir = "./result"
-# mode = "train"
-# train_continue = "off"
 
 # make directories
 if not os.path.exists(result_dir):
@@ -87,10 +77,11 @@ writer_val = SummaryWriter(log_dir=os.path.join(log_dir, "val"))
 ## simple function for save img data.(tensor to numpy... etc)
 fn_toNumpy = lambda x: x.to('cpu').detach().numpy().transpose(0, 2, 3, 1)
 fn_denorm = lambda x, mean, std: (x * std) + mean
-fn_class = lambda x: 1.0 * (x > 0.5)
+fn_class = lambda x: (x > 0.5) * 1
 
+#
 ## make network instance
-net = UNet().to(device)
+net = UNet.to(device)
 
 ## make optimizer and loss function
 optim = torch.optim.Adam(params=net.parameters(), lr=lr)
@@ -105,7 +96,8 @@ df = pd.read_csv(os.path.join(data_dir, 'train.csv'))
 
 ## split DF into 2 sets, Train(0.8) and Valid(0.2) / All data is type of Dataframe.
 df = filterDF(df=df, imgListInDir=os.listdir(os.path.join(data_dir, 'train_images')))
-df = df.pivot(index='ImageId', columns='ClassId', values='EncodedPixels')  # pivot shape 으로 변형해서, 한 이미지 아이디에 대해서, 클래스별 'EncodedPixels' 값을 할당해준다.
+df = df.pivot(index='ImageId', columns='ClassId',
+              values='EncodedPixels')  # pivot shape 으로 변형해서, 한 이미지 아이디에 대해서, 클래스별 'EncodedPixels' 값을 할당해준다.
 df['defects'] = df.count(axis=1)  # column direction.
 
 train_df, val_df = train_test_split(df, test_size=0.2, stratify=df['defects'], random_state=69)
@@ -114,7 +106,13 @@ print("The Number of TRAIN Data : %d " % len(train_df))
 print("The Number of VALID Data : %d " % len(val_df))
 
 ## Transforming data
-transform = transforms.Compose([Normalization(mean=0.5, std=0.5), RandomFlip(), ToTensor()])
+
+# get this value from pre-trained model of resnet18 in the repository.
+mean_in = (0.485, 0.456, 0.406)
+std_in = (0.229, 0.224, 0.225)
+
+# set transform object.
+transform = transforms.Compose([Normalization(mean=mean_in, std=std_in), RandomFlip(), ToTensor()])
 
 ## for train
 dataset_train = Dataset(data_dir=data_dir, dfSrc=train_df, transform=transform)
@@ -136,18 +134,18 @@ if (train_continue == 'on'):
     net, optim, st_epoch = load(ckpt_dir=ckpt_dir, net=net, optim=optim)
 
 for epoch in range(st_epoch + 1, num_epoch + 1):
-
     # set train model explicitly
     net.train()
     loss_arr = []
 
+    # forward pass
     for batch, data in enumerate(loader_train, 1):
-        # forward pass
         label = data['label'].to(device)
         input = data['input'].to(device)
 
         # getting output by feeding input data.
         output = net(input)
+        output = torch.sigmoid(output)
 
         # backward pass
         optim.zero_grad()
@@ -164,35 +162,17 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
         print("TRAIN : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (
             epoch, num_epoch, batch, num_batch_train, np.mean(loss_arr)))
 
-        # print('tensor, input.shape : ', input.shape)
-        # print('tensor, output.shape : ', output.shape)
-        # print('sum of tensor label : ', label[0].sum())
-        print('sum of tensor output  : ', output[0].sum())
-
         # set save data
+        input = fn_toNumpy(input)
         label = fn_toNumpy(label)
-        input = fn_toNumpy(fn_denorm(input, mean=0.5, std=0.5))
-        # output = fn_toNumpy(fn_class(output))
-        output = fn_toNumpy(output)
+        output = fn_toNumpy(fn_class(output))
 
-
-        # print('sum of numpy label : ', label[0].sum())
-        print('sum of numpy output  : ', output[0].sum())
-
-        # save img data along tensorboard
-        # if batch % 2 == 0:
-            # writer_train.add_image('label', label, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
-            # writer_train.add_image('input', input, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
-            # writer_train.add_image('output', output, num_batch_train * (epoch - 1) + batch, dataformats='NHWC')
-            # # checking,,test
-            # print('tensor, input.shape : ', input.shape)
-            # print('tensor, output.shape : ', output.shape)
-
-        if batch % 10 == 0:
-            np.save(os.path.join(result_dir, 'numpy', 'batch%04d_label.npy' % batch), label)
-            np.save(os.path.join(result_dir, 'numpy', 'batch%04d_input.npy' % batch), input)
-            np.save(os.path.join(result_dir, 'numpy', 'batch%04d_output.npy' % batch), output)
-
+    # save network and numpy file at specified checkpoint.
+    if epoch % 1 == 0:
+        save(ckpt_dir, net, optim, epoch)
+        np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_input.npy' % epoch), input)
+        np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_label.npy' % epoch), label)
+        np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_output.npy' % epoch), output)
 
     # save loss value.
     writer_train.add_scalar("loss", np.mean(loss_arr), epoch)
@@ -211,64 +191,34 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
 
             # getting output by feeding input data.
             output = net(input)
+            output = torch.sigmoid(output)
 
             # skip backward propagation
 
             # getting loss
             loss = fn_loss(output, label)
+
             # save loss value
             loss_arr += [loss.item()]
 
             print("Valid : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (
                 epoch, num_epoch, batch, num_batch_val, np.mean(loss_arr)))
 
-            # set save data
+            # input을 denorm 하는 것은 꼭 필요한 과정은 아니므로, 생략하고 돌려본다.
+            input = fn_toNumpy(input)
             label = fn_toNumpy(label)
-            input = fn_toNumpy(fn_denorm(input, mean=0.5, std=0.5))
-            # output = fn_toNumpy(fn_class(output))
-            output = fn_toNumpy(output)
+            output = fn_toNumpy(fn_class(output))
 
             print('after valid ----- batch %04d ' % batch)
             print('Shape of Label : ', label.shape)
             print('Shape of Output : ', output.shape)
 
-            # save img data along tensorboard
-            # if batch == num_batch_val:
-            #     writer_val.add_image('label', label, num_batch_val * (epoch - 1) + batch, dataformats='NHWC')
-            #     writer_val.add_image('input', input, num_batch_val * (epoch - 1) + batch, dataformats='NHWC')
-            #     writer_val.add_image('output', output, num_batch_val * (epoch - 1) + batch, dataformats='NHWC')
+            print('When saving png and numpy file ----- epoch %04d ' % epoch)
+            print('Shape of Label : ', label.shape)
+            print('Shape of Output : ', output.shape)
 
-
-
-        print('When saving png and numpy file ----- epoch %04d ' % epoch)
-        print('Shape of Label : ', label.shape)
-        print('Shape of Output : ', output.shape)
-
-        # save data samples..as png file
-        # if epoch % 1 == 0:
-            # plt.imsave(os.path.join(result_dir, 'png', 'epoch%04d_label.png' % epoch), label[-1].squeeze(), cmap='gray')
-            # plt.imsave(os.path.join(result_dir, 'png', 'epoch%04d_input.png' % epoch), input[-1].squeeze(), cmap='gray')
-            # plt.imsave(os.path.join(result_dir, 'png', 'epoch%04d_output.png' % epoch), output[-1].squeeze(), cmap='gray')
-
-            # save data samples..as npy file
-            # np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_label.npy' % epoch), label[-1].squeeze())
-            # np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_input.npy' % epoch), input[-1].squeeze())
-            # np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_output.npy' % epoch), output[-1].squeeze())
-            # np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_label.npy' % epoch), label[2])
-            # np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_input.npy' % epoch), input[2])
-            # np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_output.npy' % epoch), output[2])
-
-    # save loss value for valid process.
-    writer_val.add_scalar("loss", np.mean(loss_arr), epoch)
-
-    # save network at specified checkpoint.
-    if epoch % 1 == 0:
-        save(ckpt_dir, net, optim, epoch)
+        # save loss value for valid process.
+        writer_val.add_scalar("loss", np.mean(loss_arr), epoch)
 
 writer_train.close()
 writer_val.close()
-
-## some works for saving data : checkpoint for network, optimizer and epoch info.
-
-
-## need to consider how to make output string of masked pixels.
