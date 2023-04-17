@@ -14,6 +14,8 @@ import torch
 import torch.utils.data
 from torchvision import transforms
 from torch.utils.data import DataLoader
+from albumentations import (HorizontalFlip, Normalize, Compose)
+from albumentations.pytorch import ToTensorV2
 
 data_dir = './datasets'
 result_dir = './result'
@@ -22,8 +24,7 @@ result_dir = './result'
 ## Dataloader
 
 class Dataset(torch.utils.data.Dataset):
-    # def __init__(self, data_dir, transform=None):
-    def __init__(self, data_dir, dfSrc=None, transform=None):
+    def __init__(self, data_dir, dfSrc=None, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), phase='train'):
         '''
 
         :param data_dir:
@@ -32,7 +33,8 @@ class Dataset(torch.utils.data.Dataset):
         '''
         self.data_dir = data_dir
         self.dfSrc = dfSrc
-        self.transform = transform
+        # self.transform = transform
+        self.transform = get_transform(phase, mean, std)
 
         if self.dfSrc is not None:
             self.imgs_dir = os.path.join(data_dir, 'train_images')
@@ -52,40 +54,49 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # make input Image
         input_PIL = Image.open(os.path.join(self.imgs_dir, self.dfSrc.iloc[index].name))
-        input = np.asarray(input_PIL)
-
-        # # squeeze input data into 1 channel.
-        # (cautious) when initial layer of model input should be 1.
-        # input = np.delete(input, [1, 2], axis=2)
+        input_ = np.asarray(input_PIL)
 
         # make label image
         if self.dfSrc is not None:
             # get label img(h,w,c=4) and imgId
-            imgId, label = getLabelImg(dfSrc=self.dfSrc, idx=index, shape=input.shape)
+            imgId, label_ = getLabelImg(dfSrc=self.dfSrc, idx=index, shape=input_.shape)
+            
         else:
             # just copy input data into label, in order to avoiding error.
-            label = input
+            label_ = input_
 
-        input = input / 255.0
-        label = label / 255.0
+        input_ = input_ / 255.0
+        label_ = label_ / 255.0
 
         # Check Dimension and add one dimension.
-        if input.ndim == 2:
-            input = input[:, :, np.newaxis]
-        if label.ndim == 2:
-            label = label[:, :, np.newaxis]
+        if input_.ndim == 2:
+            input_ = input_[:, :, np.newaxis]
+        if label_.ndim == 2:
+            label_ = label_[:, :, np.newaxis]
 
         # make data object as dict type for label, input
-        data = {'input': input, 'label': label}
-
-        if self.transform:  # only when training model.
-            data = self.transform(data)
-        # transform 클래스의 return 값은 여기서 선언한 data 사전형과 동일하게 해줘야 한다.
+        label_ = label_.transpose((2,0,1))
+        data = self.transform(image=input_, mask=label_)
 
         return data
 
 
 ##
+def get_transform(phase, mean, std):
+    list_transforms = []
+    if phase == "train":
+        list_transforms.extend([
+            HorizontalFlip(p=0.5)
+        ])
+
+    list_transforms.extend([
+        Normalize(mean=mean, std=std, p=1),
+        ToTensorV2()
+    ])
+
+    list_transforms = Compose(list_transforms)
+    return list_transforms
+
 
 # imgShape.shape : (height, width, )
 def getLabelImg(dfSrc, idx, shape):
@@ -110,7 +121,7 @@ def getLabelImg(dfSrc, idx, shape):
             length = map(int, label[1::2])
             mask = np.zeros(shape[0] * shape[1], dtype=np.uint8)
             for pos, le in zip(position, length):
-                mask[pos:pos + le - 1] = 255
+                mask[pos:(pos + le)] = 255
 
             # map to origianl masks variable.
             masks[:, :, i] = mask.reshape(shape[0], shape[1], order='F')
@@ -176,6 +187,7 @@ class Normalization(object):
         data = {'label': label, 'input': input}
         return data
 
+
 class RandomFlip(object):
     '''
     Flip data left and right, Up and Down Randomly
@@ -200,7 +212,7 @@ class RandomFlip(object):
 ## checking // read npy files
 # res_npy_dir = os.path.join(result_dir, 'numpy')
 #
-# ix = 2
+# ix = 10
 # input_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_input.npy' % (ix)))
 # label_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_label.npy' % (ix)))
 # output_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_output.npy' % (ix)))
@@ -215,7 +227,7 @@ class RandomFlip(object):
 #
 # ## plot input data // label
 # target = label_npy
-# batch_num = 0
+# batch_num = 1
 #
 # ax0 = plt.subplot(511)
 # plt.imshow(input_npy[batch_num], cmap='gray')
@@ -255,4 +267,3 @@ class RandomFlip(object):
 # plt.show()
 
 ##
-

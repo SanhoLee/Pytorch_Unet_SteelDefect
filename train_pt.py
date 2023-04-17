@@ -77,7 +77,7 @@ writer_val = SummaryWriter(log_dir=os.path.join(log_dir, "val"))
 ## simple function for save img data.(tensor to numpy... etc)
 fn_toNumpy = lambda x: x.to('cpu').detach().numpy().transpose(0, 2, 3, 1)
 fn_denorm = lambda x, mean, std: (x * std) + mean
-fn_class = lambda x: (x > 0.5) * 1
+fn_class = lambda x: (x > 0.2) * 1
 
 #
 ## make network instance
@@ -112,16 +112,16 @@ mean_in = (0.485, 0.456, 0.406)
 std_in = (0.229, 0.224, 0.225)
 
 # set transform object.
-transform = transforms.Compose([Normalization(mean=mean_in, std=std_in), RandomFlip(), ToTensor()])
+# transform = transforms.Compose([Normalization(mean=mean_in, std=std_in), RandomFlip(), ToTensor()])
 
 ## for train
-dataset_train = Dataset(data_dir=data_dir, dfSrc=train_df, transform=transform)
+dataset_train = Dataset(data_dir=data_dir, dfSrc=train_df, mean=mean_in, std=std_in, phase='train')
 loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size, shuffle=True, num_workers=8)
 num_data_train = len(dataset_train)
 num_batch_train = np.ceil(num_data_train / batch_size)  # 전체 데이터에 대해 train 을 반복되는 iteration 횟수와 같은 개념이 된다.
 
 ## for validation
-dataset_val = Dataset(data_dir=data_dir, dfSrc=val_df, transform=transform)
+dataset_val = Dataset(data_dir=data_dir, dfSrc=val_df, mean=mean_in, std=std_in, phase='valid')
 loader_val = DataLoader(dataset=dataset_val, batch_size=batch_size, shuffle=False, num_workers=8)
 num_data_val = len(dataset_val)
 num_batch_val = np.ceil(num_data_val / batch_size)
@@ -140,8 +140,8 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
 
     # forward pass
     for batch, data in enumerate(loader_train, 1):
-        label = data['label'].to(device)
-        input = data['input'].to(device)
+        label = data['mask'].to(device)
+        input = data['image'].to(device)
 
         # getting output by feeding input data.
         output = net(input)
@@ -162,10 +162,14 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
         print("TRAIN : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (
             epoch, num_epoch, batch, num_batch_train, np.mean(loss_arr)))
 
+        print('tensor output max / min : %.3f / %.3f ' % (output.max(), output.min()))
+
         # set save data
         input = fn_toNumpy(input)
         label = fn_toNumpy(label)
         output = fn_toNumpy(fn_class(output))
+
+        print('numpy output max / min : %.3f / %.3f ' % (output.max(), output.min()))
 
     # save network and numpy file at specified checkpoint.
     if epoch % 1 == 0:
@@ -186,8 +190,8 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
 
         for batch, data in enumerate(loader_val, 1):
             # forward pass
-            label = data['label'].to(device)
-            input = data['input'].to(device)
+            label = data['mask'].to(device)
+            input = data['image'].to(device)
 
             # getting output by feeding input data.
             output = net(input)
