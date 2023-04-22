@@ -14,6 +14,7 @@ import torch
 import torch.utils.data
 from torchvision import transforms
 from torch.utils.data import DataLoader
+
 from albumentations import (HorizontalFlip, Normalize, Compose)
 from albumentations.pytorch import ToTensorV2
 
@@ -60,13 +61,10 @@ class Dataset(torch.utils.data.Dataset):
         if self.dfSrc is not None:
             # get label img(h,w,c=4) and imgId
             imgId, label_ = getLabelImg(dfSrc=self.dfSrc, idx=index, shape=input_.shape)
-            
+
         else:
             # just copy input data into label, in order to avoiding error.
             label_ = input_
-
-        input_ = input_ / 255.0
-        label_ = label_ / 255.0
 
         # Check Dimension and add one dimension.
         if input_.ndim == 2:
@@ -75,7 +73,7 @@ class Dataset(torch.utils.data.Dataset):
             label_ = label_[:, :, np.newaxis]
 
         # make data object as dict type for label, input
-        label_ = label_.transpose((2,0,1))
+        label_ = label_.transpose((2, 0, 1))
         data = self.transform(image=input_, mask=label_)
 
         return data
@@ -121,7 +119,7 @@ def getLabelImg(dfSrc, idx, shape):
             length = map(int, label[1::2])
             mask = np.zeros(shape[0] * shape[1], dtype=np.uint8)
             for pos, le in zip(position, length):
-                mask[pos:(pos + le)] = 255
+                mask[pos:(pos + le)] = 1
 
             # map to origianl masks variable.
             masks[:, :, i] = mask.reshape(shape[0], shape[1], order='F')
@@ -151,64 +149,6 @@ def filterDF(df, imgListInDir):
     return df
 
 
-##
-class ToTensor(object):
-    '''
-    change data type, numpy -> tensor
-    '''
-
-    def __call__(self, data):
-        # get data
-        label, input = data['label'], data['input']
-
-        # set each column into tensor-way// (width, height, channel) -> (channel, width, height)
-        label = label.transpose((2, 0, 1)).astype(np.float32)
-        input = input.transpose((2, 0, 1)).astype(np.float32)
-
-        data = {'label': torch.from_numpy(label), 'input': torch.from_numpy(input)}
-
-        return data
-
-
-class Normalization(object):
-    '''
-    Normalizing pixel values
-    '''
-
-    def __init__(self, mean=0.5, std=0.5):
-        self.mean = mean
-        self.std = std
-
-    def __call__(self, data):
-        # only to input data
-        label, input = data['label'], data['input']
-        input = (input - self.mean) / self.std
-
-        data = {'label': label, 'input': input}
-        return data
-
-
-class RandomFlip(object):
-    '''
-    Flip data left and right, Up and Down Randomly
-    '''
-
-    def __call__(self, data):
-        # get data
-        label, input = data['label'], data['input']
-
-        if np.random.rand() > 0.5:
-            label = np.fliplr(label)
-            input = np.fliplr(input)
-
-        if np.random.rand() > 0.5:
-            label = np.flipud(label)
-            input = np.flipud(input)
-
-        data = {'label': label, 'input': input}
-        return data
-
-
 ## checking // read npy files
 # res_npy_dir = os.path.join(result_dir, 'numpy')
 #
@@ -217,19 +157,12 @@ class RandomFlip(object):
 # label_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_label.npy' % (ix)))
 # output_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_output.npy' % (ix)))
 #
-# ##
-# # fn_transpose = lambda x: np.transpose(x, (0, 3, 1, 2))  # (n,c,h,w)
-# # fn_transpose_b = lambda x: np.transpose(x, (0, 2, 3, 1))  # (n,h,w,c)
-# #
-# # # input_npy = fn_transpose(input_npy)
-# # label_npy = fn_transpose(label_npy)
-# # output_npy = fn_transpose(output_npy)
-#
 # ## plot input data // label
 # target = label_npy
-# batch_num = 1
+# batch_num = 0
 #
 # ax0 = plt.subplot(511)
+# # plt.imshow(input_npy[batch_num], cmap='gray')
 # plt.imshow(input_npy[batch_num], cmap='gray')
 #
 # ax1 = plt.subplot(512)
@@ -265,5 +198,3 @@ class RandomFlip(object):
 # plt.imshow(target2[batch_num][:, :, 3:4], cmap='gray')
 #
 # plt.show()
-
-##

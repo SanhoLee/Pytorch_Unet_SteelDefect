@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 import torch
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -87,6 +88,9 @@ net = UNet.to(device)
 optim = torch.optim.Adam(params=net.parameters(), lr=lr)
 fn_loss = nn.BCEWithLogitsLoss().to(device)
 
+##schedular
+schedular = ReduceLROnPlateau(optimizer=optim, mode='min', patience=2, factor=0.3, verbose=True)
+
 ## Preparing Dataset and Dataloader (train)
 # num_workers : num of multiprocessor
 # batch_size : the number of data in one batch unit.
@@ -138,42 +142,38 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
     net.train()
     loss_arr = []
 
-    # forward pass
+    # train process, initialize gradient of tensors for each epoch.
+    optim.zero_grad()
+
     for batch, data in enumerate(loader_train, 1):
+
+        # forward pass
         label = data['mask'].to(device)
         input = data['image'].to(device)
-
-        # getting output by feeding input data.
         output = net(input)
-        output = torch.sigmoid(output)
+        # output = torch.sigmoid(output)
 
         # backward pass
-        optim.zero_grad()
-
-        # getting loss
         loss = fn_loss(output, label)
         loss.backward()
 
+        # update gradients
         optim.step()
+        optim.zero_grad()   # in order to initializing previous gradient value by each mini-batch number.
 
         # save loss value
         loss_arr += [loss.item()]
 
-        print("TRAIN : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (
-            epoch, num_epoch, batch, num_batch_train, np.mean(loss_arr)))
+        print("TRAIN : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (epoch, num_epoch, batch, num_batch_train, np.mean(loss_arr)))
 
-        print('tensor output max / min : %.3f / %.3f ' % (output.max(), output.min()))
-
+    # save network and numpy file at specified checkpoint.
+    if epoch % 5 == 0:
         # set save data
         input = fn_toNumpy(input)
         label = fn_toNumpy(label)
-        output = fn_toNumpy(fn_class(output))
+        # output = fn_toNumpy(fn_class(output))
 
-        print('numpy output max / min : %.3f / %.3f ' % (output.max(), output.min()))
-
-    # save network and numpy file at specified checkpoint.
-    if epoch % 1 == 0:
-        save(ckpt_dir, net, optim, epoch)
+        # save(ckpt_dir, net, optim, epoch)
         np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_input.npy' % epoch), input)
         np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_label.npy' % epoch), label)
         np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_output.npy' % epoch), output)
@@ -188,19 +188,21 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
         net.eval()
         loss_arr = []
 
+        # train process, initialize gradient of tensors for each epoch.
+        optim.zero_grad()
+
         for batch, data in enumerate(loader_val, 1):
             # forward pass
             label = data['mask'].to(device)
             input = data['image'].to(device)
-
-            # getting output by feeding input data.
             output = net(input)
-            output = torch.sigmoid(output)
+            # output = torch.sigmoid(output)
 
             # skip backward propagation
-
-            # getting loss
             loss = fn_loss(output, label)
+
+            # set schedular...
+            schedular.step(loss)
 
             # save loss value
             loss_arr += [loss.item()]
@@ -209,17 +211,17 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
                 epoch, num_epoch, batch, num_batch_val, np.mean(loss_arr)))
 
             # input을 denorm 하는 것은 꼭 필요한 과정은 아니므로, 생략하고 돌려본다.
-            input = fn_toNumpy(input)
-            label = fn_toNumpy(label)
-            output = fn_toNumpy(fn_class(output))
+            # input = fn_toNumpy(input)
+            # label = fn_toNumpy(label)
+            # output = fn_toNumpy(fn_class(output))
 
-            print('after valid ----- batch %04d ' % batch)
-            print('Shape of Label : ', label.shape)
-            print('Shape of Output : ', output.shape)
-
-            print('When saving png and numpy file ----- epoch %04d ' % epoch)
-            print('Shape of Label : ', label.shape)
-            print('Shape of Output : ', output.shape)
+            # print('after valid ----- batch %04d ' % batch)
+            # print('Shape of Label : ', label.shape)
+            # print('Shape of Output : ', output.shape)
+            #
+            # print('When saving png and numpy file ----- epoch %04d ' % epoch)
+            # print('Shape of Label : ', label.shape)
+            # print('Shape of Output : ', output.shape)
 
         # save loss value for valid process.
         writer_val.add_scalar("loss", np.mean(loss_arr), epoch)
