@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+# import cv2
 from PIL import Image
 
 from zipfile import ZipFile
@@ -78,6 +79,7 @@ class Dataset(torch.utils.data.Dataset):
 
         return data
 
+##
 
 ##
 def get_transform(phase, mean, std):
@@ -148,53 +150,4 @@ def filterDF(df, imgListInDir):
 
     return df
 
-
-## checking // read npy files
-# res_npy_dir = os.path.join(result_dir, 'numpy')
-#
-# ix = 10
-# input_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_input.npy' % (ix)))
-# label_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_label.npy' % (ix)))
-# output_npy = np.load(os.path.join(res_npy_dir, f'epoch%04d_output.npy' % (ix)))
-#
-# ## plot input data // label
-# target = label_npy
-# batch_num = 0
-#
-# ax0 = plt.subplot(511)
-# # plt.imshow(input_npy[batch_num], cmap='gray')
-# plt.imshow(input_npy[batch_num], cmap='gray')
-#
-# ax1 = plt.subplot(512)
-# plt.imshow(target[batch_num][:, :, :1], cmap='gray')
-#
-# ax2 = plt.subplot(513)
-# plt.imshow(target[batch_num][:, :, 1:2], cmap='gray')
-#
-# ax3 = plt.subplot(514)
-# plt.imshow(target[batch_num][:, :, 2:3], cmap='gray')
-#
-# ax4 = plt.subplot(515)
-# plt.imshow(target[batch_num][:, :, 3:4], cmap='gray')
-#
-# plt.show()
-#
-# ## plot input data // output
-# target2 = output_npy
-#
-# ax10 = plt.subplot(511)
-# plt.imshow(input_npy[batch_num], cmap='gray')
-#
-# ax11 = plt.subplot(512)
-# plt.imshow(target2[batch_num][:, :, :1], cmap='gray')
-#
-# ax12 = plt.subplot(513)
-# plt.imshow(target2[batch_num][:, :, 1:2], cmap='gray')
-#
-# ax13 = plt.subplot(514)
-# plt.imshow(target2[batch_num][:, :, 2:3], cmap='gray')
-#
-# ax14 = plt.subplot(515)
-# plt.imshow(target2[batch_num][:, :, 3:4], cmap='gray')
-#
-# plt.show()
+##

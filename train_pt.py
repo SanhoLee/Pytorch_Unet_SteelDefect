@@ -80,7 +80,6 @@ fn_toNumpy = lambda x: x.to('cpu').detach().numpy().transpose(0, 2, 3, 1)
 fn_denorm = lambda x, mean, std: (x * std) + mean
 fn_class = lambda x: (x > 0.2) * 1
 
-#
 ## make network instance
 net = UNet.to(device)
 
@@ -115,9 +114,6 @@ print("The Number of VALID Data : %d " % len(val_df))
 mean_in = (0.485, 0.456, 0.406)
 std_in = (0.229, 0.224, 0.225)
 
-# set transform object.
-# transform = transforms.Compose([Normalization(mean=mean_in, std=std_in), RandomFlip(), ToTensor()])
-
 ## for train
 dataset_train = Dataset(data_dir=data_dir, dfSrc=train_df, mean=mean_in, std=std_in, phase='train')
 loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size, shuffle=True, num_workers=8)
@@ -132,6 +128,7 @@ num_batch_val = np.ceil(num_data_val / batch_size)
 
 ## start train process...
 st_epoch = 0
+best_loss = float("inf")
 
 # TRAIN mode
 if (train_continue == 'on'):
@@ -151,7 +148,6 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
         label = data['mask'].to(device)
         input = data['image'].to(device)
         output = net(input)
-        # output = torch.sigmoid(output)
 
         # backward pass
         loss = fn_loss(output, label)
@@ -159,24 +155,13 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
 
         # update gradients
         optim.step()
-        optim.zero_grad()   # in order to initializing previous gradient value by each mini-batch number.
+        optim.zero_grad()  # in order to initializing previous gradient value by each mini-batch number.
 
         # save loss value
         loss_arr += [loss.item()]
 
-        print("TRAIN : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (epoch, num_epoch, batch, num_batch_train, np.mean(loss_arr)))
-
-    # save network and numpy file at specified checkpoint.
-    if epoch % 5 == 0:
-        # set save data
-        input = fn_toNumpy(input)
-        label = fn_toNumpy(label)
-        # output = fn_toNumpy(fn_class(output))
-
-        # save(ckpt_dir, net, optim, epoch)
-        np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_input.npy' % epoch), input)
-        np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_label.npy' % epoch), label)
-        np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_output.npy' % epoch), output)
+        print("TRAIN : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (
+            epoch, num_epoch, batch, num_batch_train, np.mean(loss_arr)))
 
     # save loss value.
     writer_train.add_scalar("loss", np.mean(loss_arr), epoch)
@@ -196,7 +181,6 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
             label = data['mask'].to(device)
             input = data['image'].to(device)
             output = net(input)
-            # output = torch.sigmoid(output)
 
             # skip backward propagation
             loss = fn_loss(output, label)
@@ -210,18 +194,30 @@ for epoch in range(st_epoch + 1, num_epoch + 1):
             print("Valid : EPOCH %04d / %04d | BATCH %04d / %04d | LOSS %.4f" % (
                 epoch, num_epoch, batch, num_batch_val, np.mean(loss_arr)))
 
-            # input을 denorm 하는 것은 꼭 필요한 과정은 아니므로, 생략하고 돌려본다.
-            # input = fn_toNumpy(input)
-            # label = fn_toNumpy(label)
-            # output = fn_toNumpy(fn_class(output))
 
-            # print('after valid ----- batch %04d ' % batch)
-            # print('Shape of Label : ', label.shape)
-            # print('Shape of Output : ', output.shape)
-            #
-            # print('When saving png and numpy file ----- epoch %04d ' % epoch)
-            # print('Shape of Label : ', label.shape)
-            # print('Shape of Output : ', output.shape)
+
+            # save network and numpy file at specified checkpoint.
+            if epoch % 10 == 0 and batch == num_batch_val // 2:
+                print("Saving npy files...EPOCH : %04d" % (epoch))
+                # set save data
+                # input = fn_toNumpy(input)
+                input = fn_toNumpy(torch.sigmoid(input))
+                label = fn_toNumpy(label)
+                output = fn_toNumpy(fn_class(torch.sigmoid(output)))
+
+                print('shape of input : ', input.shape)
+                print('shape of label : ', label.shape)
+                print('shape of output : ', output.shape)
+
+                # save(ckpt_dir, net, optim, epoch)
+                np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_input.npy' % epoch), input)
+                np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_label.npy' % epoch), label)
+                np.save(os.path.join(result_dir, 'numpy', 'epoch%04d_output.npy' % epoch), output)
+
+        if (np.mean(loss_arr) < best_loss):
+            best_loss = np.mean(loss_arr)
+            print("New optimal result saving, EPOCH : %04d | BEST LOSS : %.4f" % (epoch, best_loss))
+            save(ckpt_dir=ckpt_dir, net=net, optim=optim, epoch=epoch)
 
         # save loss value for valid process.
         writer_val.add_scalar("loss", np.mean(loss_arr), epoch)
